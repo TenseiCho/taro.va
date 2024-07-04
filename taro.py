@@ -3,6 +3,7 @@ import pyttsx3
 import threading
 import tkinter as tk
 from datetime import datetime
+import pygame
 
 class VoiceAssistant:
     def __init__(self):
@@ -10,6 +11,11 @@ class VoiceAssistant:
         self.engine = pyttsx3.init()
         self.wake_word = "taro"
         self.is_listening = False
+        pygame.mixer.init()
+        self.wake_sound = pygame.mixer.Sound("start.wav")
+
+    def play_wake_sound(self):
+        pygame.mixer.Sound.play(self.wake_sound)
 
     def listen_for_wake_word(self):
         with sr.Microphone() as source:
@@ -20,6 +26,7 @@ class VoiceAssistant:
                     text = self.recognizer.recognize_google(audio).lower()
                     if self.wake_word in text:
                         self.is_listening = True
+                        self.play_wake_sound()  # Play sound when wake word is recognized
                         self.speak("Yes, I'm listening.")
                         self.process_command()
                 except sr.WaitTimeoutError:
