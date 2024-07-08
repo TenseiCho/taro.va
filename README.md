@@ -5,6 +5,7 @@
 - pip install pyaudio
 - pip install playsound
 - pip install pocketsphinx
+- pip install pygame
 
 ## Issues
 - Any noise/sound will start the prompt.
