@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import pygame
 import re
 import time
+import pytz
 
 class VoiceAssistant:
     def __init__(self):
@@ -18,6 +19,10 @@ class VoiceAssistant:
         self.timer_sound = pygame.mixer.Sound("gameover.wav")
         self.timer_end_time = None
         self.timer_thread = None
+        self.alarm_time = None
+        self.alarm_thread = None
+        self.alarm_ringing = False
+        self.est_tz = pytz.timezone('US/Eastern')
 
     def play_wake_sound(self):
         pygame.mixer.Sound.play(self.wake_sound)
@@ -54,6 +59,10 @@ class VoiceAssistant:
                     self.set_timer(command)
                 elif "cancel the timer" in command:
                     self.cancel_timer()
+                elif "set an alarm" in command:
+                    self.set_alarm(command)
+                elif "cancel alarm" in command:
+                    self.cancel_alarm()
                 else:
                     self.speak(f"You said: {command}")
             except sr.UnknownValueError:
@@ -63,7 +72,7 @@ class VoiceAssistant:
         self.is_listening = False
 
     def tell_time(self):
-        current_time = datetime.now().strftime("%I:%M %p")
+        current_time = datetime.now(self.est_tz).strftime("%I:%M %p")
         self.speak(f"The current time is {current_time}")
 
     def set_timer(self, command):
@@ -114,6 +123,55 @@ class VoiceAssistant:
         self.play_timer_sound()
         self.timer_end_time = None
 
+    def set_alarm(self, command):
+        time_match = re.search(r'(\d{1,2}):(\d{2})\s*(am|pm)?', command)
+        if time_match:
+            hours, minutes, meridiem = time_match.groups()
+            hours = int(hours)
+            minutes = int(minutes)
+            
+            if meridiem:
+                if meridiem.lower() == 'pm' and hours != 12:
+                    hours += 12
+                elif meridiem.lower() == 'am' and hours == 12:
+                    hours = 0
+            
+            now = datetime.now(self.est_tz)
+            alarm_time = now.replace(hour=hours, minute=minutes, second=0, microsecond=0)
+            
+            if alarm_time <= now:
+                alarm_time += timedelta(days=1)
+            
+            self.alarm_time = alarm_time
+            self.speak(f"Alarm set for {alarm_time.strftime('%I:%M %p')} Eastern Standard Time.")
+            
+            if self.alarm_thread is not None and self.alarm_thread.is_alive():
+                self.alarm_thread.cancel()
+            
+            self.alarm_thread = threading.Timer((alarm_time - now).total_seconds(), self.alarm_triggered)
+            self.alarm_thread.start()
+        else:
+            self.speak("I'm sorry, I couldn't understand the alarm time. Please try again.")
+
+    def cancel_alarm(self):
+        if self.alarm_ringing:
+            self.alarm_ringing = False
+            self.speak("Alarm turned off.")
+        elif self.alarm_thread is not None and self.alarm_thread.is_alive():
+            self.alarm_thread.cancel()
+            self.alarm_time = None
+            self.speak("Alarm cancelled.")
+        else:
+            self.speak("There is no active alarm to cancel.")
+
+    def alarm_triggered(self):
+        self.alarm_ringing = True
+        self.speak("Alarm is ringing!")
+        while self.alarm_ringing:
+            self.play_timer_sound()
+            time.sleep(1)
+        self.alarm_time = None
+
     def speak(self, text):
         self.engine.say(text)
         self.engine.runAndWait()
@@ -121,13 +179,16 @@ class VoiceAssistant:
     def run_gui(self):
         root = tk.Tk()
         root.title("Taro Voice Assistant")
-        root.geometry("300x150")
+        root.geometry("300x200")
 
         status_label = tk.Label(root, text="Status: Waiting for wake word")
         status_label.pack(pady=10)
 
         timer_label = tk.Label(root, text="No active timer")
         timer_label.pack(pady=10)
+
+        alarm_label = tk.Label(root, text="No active alarm")
+        alarm_label.pack(pady=10)
 
         def update_gui():
             status = "Listening" if self.is_listening else "Waiting for wake word"
@@ -145,6 +206,16 @@ class VoiceAssistant:
                 timer_text = "No active timer"
             
             timer_label.config(text=timer_text)
+
+            if self.alarm_time:
+                alarm_text = f"Alarm: {self.alarm_time.strftime('%I:%M %p')} EST"
+                if self.alarm_ringing:
+                    alarm_text += " (Ringing!)"
+            else:
+                alarm_text = "No active alarm"
+            
+            alarm_label.config(text=alarm_text)
+
             root.after(1000, update_gui)
 
         update_gui()
