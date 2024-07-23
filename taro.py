@@ -156,7 +156,6 @@ class VoiceAssistant:
     def cancel_alarm(self):
         if self.alarm_ringing:
             self.alarm_ringing = False
-            self.speak("Alarm turned off.")
         elif self.alarm_thread is not None and self.alarm_thread.is_alive():
             self.alarm_thread.cancel()
             self.alarm_time = None
@@ -166,7 +165,6 @@ class VoiceAssistant:
 
     def alarm_triggered(self):
         self.alarm_ringing = True
-        self.speak("Alarm is ringing!")
         while self.alarm_ringing:
             self.play_timer_sound()
             time.sleep(1)
@@ -179,7 +177,7 @@ class VoiceAssistant:
     def run_gui(self):
         root = tk.Tk()
         root.title("Taro Voice Assistant")
-        root.geometry("300x200")
+        root.geometry("300x250")  # Increased height to accommodate the new button
 
         status_label = tk.Label(root, text="Status: Waiting for wake word")
         status_label.pack(pady=10)
@@ -189,6 +187,9 @@ class VoiceAssistant:
 
         alarm_label = tk.Label(root, text="No active alarm")
         alarm_label.pack(pady=10)
+
+        # Create a button for canceling the alarm, but don't pack it yet
+        cancel_alarm_button = tk.Button(root, text="Cancel Alarm", command=self.cancel_alarm)
 
         def update_gui():
             status = "Listening" if self.is_listening else "Waiting for wake word"
@@ -211,8 +212,12 @@ class VoiceAssistant:
                 alarm_text = f"Alarm: {self.alarm_time.strftime('%I:%M %p')} EST"
                 if self.alarm_ringing:
                     alarm_text += " (Ringing!)"
+                    cancel_alarm_button.pack(pady=10)  # Show the button when alarm is ringing
+                else:
+                    cancel_alarm_button.pack_forget()  # Hide the button when alarm is not ringing
             else:
                 alarm_text = "No active alarm"
+                cancel_alarm_button.pack_forget()  # Hide the button when there's no alarm
             
             alarm_label.config(text=alarm_text)
 
